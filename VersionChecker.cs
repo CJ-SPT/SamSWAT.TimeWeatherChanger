@@ -27,7 +27,7 @@ namespace DrakiaXYZ.VersionChecker
             int buildVersion = SamSWAT.TimeWeatherChanger.TimeWeatherPlugin.TarkovVersion;
             if (currentVersion != buildVersion)
             {
-                string errorMessage = $"ERROR: This version of Quick Throw Grenades was built for Tarkov {buildVersion}, but you are running {currentVersion}. Please download the correct plugin version.";
+                string errorMessage = $"ERROR: This version of Time and Weather changer was built for Tarkov {buildVersion}, but you are running {currentVersion}. Please download the correct plugin version.";
                 Logger.LogError(errorMessage);
                 Chainloader.DependencyErrors.Add(errorMessage);
 
