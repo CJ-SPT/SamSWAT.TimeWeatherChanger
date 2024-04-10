@@ -9,6 +9,7 @@ using EFT.Communications;
 using EFT.Console.Core;
 using EFT.UI;
 using EFT.Weather;
+using SamSWAT.TimeWeatherChanger.Patches;
 using SamSWAT.TimeWeatherChanger.Utils;
 using System;
 using System.Linq;
@@ -18,12 +19,13 @@ using Random = UnityEngine.Random;
 
 namespace SamSWAT.TimeWeatherChanger
 {
-    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.3.3")]
+    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.3.5")]
     public class TimeWeatherPlugin : BaseUnityPlugin
     {
         public const int TarkovVersion = 29197;
 
         internal static ConfigEntry<KeyboardShortcut> TogglePanel;
+        internal static ConfigEntry<bool> IsWinterEnabled;
 
         private static GameObject input;
         private static WeatherController weatherController;
@@ -67,11 +69,19 @@ namespace SamSWAT.TimeWeatherChanger
             resetTime = gameDateTime.GetMethods(BindingFlags.Public | BindingFlags.Instance).Single(x => x.Name == "Reset" && x.GetParameters().Length == 1);
             ConsoleScreen.Processor.RegisterCommand("twc", new Action(OpenPanel));
 
+            new WinterEnablePatch().Enable();
+
             TogglePanel = Config.Bind(
                 "Main Settings",
                 "Time Weather Panel Toggle Key",
                 new KeyboardShortcut(KeyCode.Home),
                 "The keyboard shortcut that toggles control panel");
+
+            IsWinterEnabled = Config.Bind(
+                "Main Settings",
+                "Enable Winter",
+                true,
+                "Enables winter for your next raid, or if you're on the menu the raid after next.");
         }
 
         [ConsoleCommand("Open Time&Weather panel")]
@@ -145,7 +155,7 @@ namespace SamSWAT.TimeWeatherChanger
                 }
                 else
                 {
-                    //Looking for the weather GameObject to which the WeatherController script is attached. If it's null, means that the player is either in a hideout or factory where dynamic weather and time are not available 
+                    //Looking for the weather GameObject to which the WeatherController script is attached. If it's null, means that the player is either in a hideout or factory where dynamic weather and time are not available
                     if (GameObject.Find("Weather") == null)
                     {
                         //Notify player with bottom-right error popup
@@ -181,12 +191,14 @@ namespace SamSWAT.TimeWeatherChanger
                 }
             }
         }
+
         public void OnGUI()
         {
             if (guiStatus)
                 windowRect = GUI.Window(0, windowRect, WindowFunction, "Time & Weather Changer by SamSWAT v2.3");
         }
-        void WindowFunction(int TWCWindowID)
+
+        private void WindowFunction(int TWCWindowID)
         {
             if (weatherDebug)
                 weatherDebugTex = "ON";
@@ -301,7 +313,6 @@ namespace SamSWAT.TimeWeatherChanger
                 topWindDir = Random.Range(0, 5);
             }
 
-
             GUILayout.EndVertical();
             GUILayout.EndArea();
 
@@ -332,6 +343,7 @@ namespace SamSWAT.TimeWeatherChanger
                     {
                         case 0:
                             break;
+
                         case 1:
                             fog = 0.008f;
                             goto IL_C5;
@@ -410,16 +422,20 @@ namespace SamSWAT.TimeWeatherChanger
                 windMagnitude = 0.4f;
                 topWindDir = Random.Range(0, 5);
             }
-            if (GUILayout.Button("Cloud Wind Rain"))
+
+            if (IsWinterEnabled.Value)
             {
-                cloudDensity = 1f;
-                fog = 0.004f;
-                lightningThunderProb = 0.5f;
-                rain = 0.8f;
-                temperature = 22f;
-                windDir = Random.Range(1, 8);
-                windMagnitude = 0.6f;
-                topWindDir = Random.Range(0, 5);
+                if (GUILayout.Button("Cloud Wind Snow"))
+                {
+                    cloudDensity = 1f;
+                    fog = 0.004f;
+                    lightningThunderProb = 0.5f;
+                    rain = 0.8f;
+                    temperature = 22f;
+                    windDir = Random.Range(1, 8);
+                    windMagnitude = 0.6f;
+                    topWindDir = Random.Range(0, 5);
+                }
             }
 
             GUILayout.EndVertical();
@@ -431,8 +447,11 @@ namespace SamSWAT.TimeWeatherChanger
             GUILayout.BeginArea(new Rect(305, 100, 140, 250));
             GUILayout.BeginVertical();
 
-            GUILayout.Box("Rain: " + Math.Round(rain * 1000) / 1000);
-            rain = GUILayout.HorizontalSlider(rain, 0f, 1f);
+            if (IsWinterEnabled.Value)
+            {
+                GUILayout.Box("Snow: " + Math.Round(rain * 1000) / 1000);
+                rain = GUILayout.HorizontalSlider(rain, 0f, 1f);
+            }
 
             GUILayout.Box("Temperature: " + Math.Round(temperature * 10) / 10);
             temperature = GUILayout.HorizontalSlider(temperature, -50f, 50f);
@@ -445,45 +464,54 @@ namespace SamSWAT.TimeWeatherChanger
                 case 1:
                     topWindDirection = Vector2.down;
                     break;
+
                 case 2:
                     topWindDirection = Vector2.left;
                     break;
+
                 case 3:
                     topWindDirection = Vector2.one;
                     break;
+
                 case 4:
                     topWindDirection = Vector2.right;
                     break;
+
                 case 5:
                     topWindDirection = Vector2.up;
                     break;
+
                 case 6:
                     topWindDirection = Vector2.zero;
                     break;
             }
 
-            if (GUILayout.Button("Light Rain"))
+            if (IsWinterEnabled.Value)
             {
-                cloudDensity = -0.1f;
-                fog = 0.004f;
-                lightningThunderProb = 0f;
-                rain = 0.5f;
-                temperature = 22f;
-                windDir = Random.Range(1, 8);
-                windMagnitude = 0f;
-                topWindDir = Random.Range(0, 5);
+                if (GUILayout.Button("Light Snow"))
+                {
+                    cloudDensity = -0.1f;
+                    fog = 0.004f;
+                    lightningThunderProb = 0f;
+                    rain = 0.5f;
+                    temperature = 22f;
+                    windDir = Random.Range(1, 8);
+                    windMagnitude = 0f;
+                    topWindDir = Random.Range(0, 5);
+                }
+                if (GUILayout.Button("Snow"))
+                {
+                    cloudDensity = 0.05f;
+                    fog = 0.004f;
+                    lightningThunderProb = 0.3f;
+                    rain = 1f;
+                    temperature = 22f;
+                    windDir = Random.Range(1, 8);
+                    windMagnitude = 0.15f;
+                    topWindDir = Random.Range(0, 5);
+                }
             }
-            if (GUILayout.Button("Rain"))
-            {
-                cloudDensity = 0.05f;
-                fog = 0.004f;
-                lightningThunderProb = 0.3f;
-                rain = 1f;
-                temperature = 22f;
-                windDir = Random.Range(1, 8);
-                windMagnitude = 0.15f;
-                topWindDir = Random.Range(0, 5);
-            }
+
             if (GUILayout.Button("Fog"))
             {
                 cloudDensity = -0.4f;
@@ -536,7 +564,6 @@ namespace SamSWAT.TimeWeatherChanger
             weatherController.WeatherDebug.TopWindDirection = topWindDirection;
             weatherController.WeatherDebug.WindDirection = windDirection;
             weatherController.WeatherDebug.WindMagnitude = windMagnitude;
-
         }
     }
 }
