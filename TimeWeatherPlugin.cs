@@ -80,7 +80,7 @@ namespace SamSWAT.TimeWeatherChanger
             IsWinterEnabled = Config.Bind(
                 "Main Settings",
                 "Enable Winter",
-                true,
+                false,
                 "Enables winter for your next raid, or if you're on the menu the raid after next.");
         }
 
