@@ -1,5 +1,4 @@
-﻿using Aki.Reflection.Utils;
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using Comfort.Common;
@@ -9,26 +8,28 @@ using EFT.Communications;
 using EFT.Console.Core;
 using EFT.UI;
 using EFT.Weather;
-using SamSWAT.TimeWeatherChanger.Patches;
 using SamSWAT.TimeWeatherChanger.Utils;
 using System;
 using System.Linq;
 using System.Reflection;
+using EFT.InputSystem;
+using SamSWAT.TimeWeatherChanger.Patches;
+using SPT.Reflection.Utils;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
 namespace SamSWAT.TimeWeatherChanger
 {
-    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.3.5")]
+    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.4.0")]
     public class TimeWeatherPlugin : BaseUnityPlugin
     {
-        public const int TarkovVersion = 29197;
+        public const int TarkovVersion = 30626;
 
-        internal static ConfigEntry<KeyboardShortcut> TogglePanel;
-        internal static ConfigEntry<bool> IsWinterEnabled;
-
-        private static GameObject input;
-        private static WeatherController weatherController;
+        public static InputManager Input;
+        
+        private static ConfigEntry<KeyboardShortcut> TogglePanel;
+        
+        private static WeatherController weatherController => WeatherController.Instance;
         private static GameWorld gameWorld;
 
         private static Type gameDateTime;
@@ -56,6 +57,8 @@ namespace SamSWAT.TimeWeatherChanger
         private static int targetTimeHours;
         private static int targetTimeMinutes;
 
+        private bool _warned = false;
+        
         public void Awake()
         {
             if (!VersionChecker.CheckEftVersion(Logger, Info, Config))
@@ -63,154 +66,128 @@ namespace SamSWAT.TimeWeatherChanger
                 throw new Exception("Invalid EFT Version");
             }
 
+            new InputManagerCreatePatch().Enable();
+            
+            Reflection.GetFieldInfos();
+            
             //Getting type responsible for time in the current world for later use
             gameDateTime = PatchConstants.EftTypes.Single(x => x.GetMethod("CalculateTaxonomyDate") != null);
             calculateTime = gameDateTime.GetMethod("Calculate", BindingFlags.Public | BindingFlags.Instance);
             resetTime = gameDateTime.GetMethods(BindingFlags.Public | BindingFlags.Instance).Single(x => x.Name == "Reset" && x.GetParameters().Length == 1);
             ConsoleScreen.Processor.RegisterCommand("twc", new Action(OpenPanel));
-
-            new WinterEnablePatch().Enable();
-
+            
             TogglePanel = Config.Bind(
                 "Main Settings",
                 "Time Weather Panel Toggle Key",
                 new KeyboardShortcut(KeyCode.Home),
                 "The keyboard shortcut that toggles control panel");
-
-            IsWinterEnabled = Config.Bind(
-                "Main Settings",
-                "Enable Winter",
-                false,
-                "Enables winter for your next raid, or if you're on the menu the raid after next.");
         }
 
         [ConsoleCommand("Open Time&Weather panel")]
         public static void OpenPanel()
         {
             gameWorld = Singleton<GameWorld>.Instance;
-            if (gameWorld == null)
+            
+            if (gameWorld is null)
             {
-                string log = "In order to change the weather, you have to go in a raid first.";
+                var log = "In order to change the weather, you have to go in a raid first.";
                 Notifier.DisplayWarningNotification(log, ENotificationDurationType.Long);
                 ConsoleScreen.Log($"[TWChanger]: {log}");
+                return;
+            }
+
+            if (GameObject.Find("Weather") is null)
+            {
+                var log = "An error occurred when executing command, seems like you are either in the hideout or factory.";
+                Notifier.DisplayWarningNotification(log);
+                ConsoleScreen.Log($"[TWChanger]: {log}");
+                return;
+            }
+            
+            guiStatus = !guiStatus;
+            Cursor.visible = guiStatus;
+            
+            if (guiStatus)
+            {
+                CursorSettings.SetCursor(ECursorType.Idle);
+                Cursor.lockState = CursorLockMode.None;
+                Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuContextMenu);
             }
             else
             {
-                if (GameObject.Find("Weather") == null)
-                {
-                    string log = "An error occurred when executing command, seems like you are either in the hideout or factory.";
-                    Notifier.DisplayWarningNotification(log);
-                    ConsoleScreen.Log($"[TWChanger]: {log}");
-                }
-                else
-                {
-                    if (input == null)
-                    {
-                        input = GameObject.Find("___Input");
-                    }
-
-                    guiStatus = !guiStatus;
-                    Cursor.visible = guiStatus;
-                    if (guiStatus)
-                    {
-                        CursorSettings.SetCursor(ECursorType.Idle);
-                        Cursor.lockState = CursorLockMode.None;
-                        Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuContextMenu);
-                    }
-                    else
-                    {
-                        CursorSettings.SetCursor(ECursorType.Invisible);
-                        Cursor.lockState = CursorLockMode.Locked;
-                        Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuDropdown);
-                    }
-                    input.SetActive(!guiStatus);
-                    ConsoleScreen.Log("[TWChanger]: Switching control panel...");
-                }
+                CursorSettings.SetCursor(ECursorType.Invisible);
+                Cursor.lockState = CursorLockMode.Locked;
+                Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuDropdown);
             }
+            
+            Input.gameObject.SetActive(!guiStatus);
+            ConsoleScreen.Log("[TWChanger]: Switching control panel...");
         }
-
-        private bool _warned = false;
-
+        
         public void Update()
         {
             if (Chainloader.PluginInfos.ContainsKey("DJ.RaidOverhaul") && PreloaderUI.Instantiated && _warned == false)
             {
-                if (GameObject.Find("ErrorScreen"))
-                    PreloaderUI.Instance.CloseErrorScreen();
-
                 PreloaderUI.Instance.ShowErrorScreen("Time & Weather Changer Error", "Time & Weather changer is not compatible with DJ's Raid Overhaul. Issues will occur.");
                 _warned = true;
             }
 
-            if (Input.GetKeyDown(TogglePanel.Value.MainKey))
+            if (UnityEngine.Input.GetKeyDown(TogglePanel.Value.MainKey))
             {
                 //Obtaining current GameWorld for later time change
                 gameWorld = Singleton<GameWorld>.Instance;
+                
                 //If GameWorld is null, it means that player currently is not in the raid. We notify the player with an error screen that he first needs to go in a raid
-                if (gameWorld == null)
+                if (gameWorld is null)
                 {
                     if (GameObject.Find("ErrorScreen"))
                         PreloaderUI.Instance.CloseErrorScreen();
+                    
                     PreloaderUI.Instance.ShowErrorScreen("Time & Weather Changer Error", "In order to change the weather, you have to go in a raid first.");
+                    return;
+                }
+                
+                // If it's null, means that the player is either in a hideout or factory where dynamic weather and time are not available
+                if (weatherController is null)
+                {
+                    //Notify player with bottom-right error popup
+                    Notifier.DisplayWarningNotification("An error occurred when opening weather panel, seems like you are either in the hideout or factory.");
+                    return;
+                }
+                
+                guiStatus = !guiStatus;
+                Cursor.visible = guiStatus;
+                
+                if (guiStatus)
+                {
+                    // Changing the default windows cursor to an EFT-style one and playing a sound when the menu appears
+                    CursorSettings.SetCursor(ECursorType.Idle);
+                    Cursor.lockState = CursorLockMode.None;
+                    Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuContextMenu);
                 }
                 else
                 {
-                    //Looking for the weather GameObject to which the WeatherController script is attached. If it's null, means that the player is either in a hideout or factory where dynamic weather and time are not available
-                    if (GameObject.Find("Weather") == null)
-                    {
-                        //Notify player with bottom-right error popup
-                        Notifier.DisplayWarningNotification("An error occurred when opening weather panel, seems like you are either in the hideout or factory.");
-                    }
-                    else
-                    {
-                        //Caching input manager GameObject which script is responsible for reading the player inputs
-                        if (input == null)
-                        {
-                            input = GameObject.Find("___Input");
-                        }
-
-                        guiStatus = !guiStatus;
-                        Cursor.visible = guiStatus;
-                        if (guiStatus)
-                        {
-                            //Changing the default windows cursor to an EFT-style one and playing a sound when the menu appears
-                            CursorSettings.SetCursor(ECursorType.Idle);
-                            Cursor.lockState = CursorLockMode.None;
-                            Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuContextMenu);
-                        }
-                        else
-                        {
-                            //Hiding cursor and playing a sound when the menu disappears
-                            CursorSettings.SetCursor(ECursorType.Invisible);
-                            Cursor.lockState = CursorLockMode.Locked;
-                            Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuDropdown);
-                        }
-                        //Disabling the input manager so the player won't move
-                        input.SetActive(!guiStatus);
-                    }
+                    // Hiding cursor and playing a sound when the menu disappears
+                    CursorSettings.SetCursor(ECursorType.Invisible);
+                    Cursor.lockState = CursorLockMode.Locked;
+                    Singleton<GUISounds>.Instance.PlayUISound(EUISoundType.MenuDropdown);
                 }
+                        
+                // Disabling the input manager so the player won't move
+                Input.gameObject.SetActive(!guiStatus);
             }
         }
 
         public void OnGUI()
         {
             if (guiStatus)
-                windowRect = GUI.Window(0, windowRect, WindowFunction, "Time & Weather Changer by SamSWAT v2.3");
+                windowRect = GUI.Window(0, windowRect, WindowFunction, "Time & Weather Changer by SamSWAT v2.4");
         }
 
         private void WindowFunction(int TWCWindowID)
         {
-            if (weatherDebug)
-                weatherDebugTex = "ON";
-            else
-                weatherDebugTex = "OFF";
-
-            //Caching WeatherController script for the first time
-            if (weatherController == null)
-            {
-                weatherController = GameObject.Find("Weather").GetComponent<WeatherController>();
-            }
-
+            weatherDebugTex = weatherDebug ? "ON" : "OFF";
+            
             //Shit ton of different sliders and buttons
 
             GUI.DragWindow(new Rect(0, 0, 10000, 20));
@@ -423,19 +400,16 @@ namespace SamSWAT.TimeWeatherChanger
                 topWindDir = Random.Range(0, 5);
             }
 
-            if (IsWinterEnabled.Value)
+            if (GUILayout.Button("Cloud Wind Rain"))
             {
-                if (GUILayout.Button("Cloud Wind Snow"))
-                {
-                    cloudDensity = 1f;
-                    fog = 0.004f;
-                    lightningThunderProb = 0.5f;
-                    rain = 0.8f;
-                    temperature = 22f;
-                    windDir = Random.Range(1, 8);
-                    windMagnitude = 0.6f;
-                    topWindDir = Random.Range(0, 5);
-                }
+                cloudDensity = 1f;
+                fog = 0.004f;
+                lightningThunderProb = 0.5f;
+                rain = 0.8f;
+                temperature = 22f;
+                windDir = Random.Range(1, 8);
+                windMagnitude = 0.6f;
+                topWindDir = Random.Range(0, 5);
             }
 
             GUILayout.EndVertical();
@@ -447,11 +421,8 @@ namespace SamSWAT.TimeWeatherChanger
             GUILayout.BeginArea(new Rect(305, 100, 140, 250));
             GUILayout.BeginVertical();
 
-            if (IsWinterEnabled.Value)
-            {
-                GUILayout.Box("Snow: " + Math.Round(rain * 1000) / 1000);
-                rain = GUILayout.HorizontalSlider(rain, 0f, 1f);
-            }
+            GUILayout.Box("Rain: " + Math.Round(rain * 1000) / 1000);
+            rain = GUILayout.HorizontalSlider(rain, 0f, 1f);
 
             GUILayout.Box("Temperature: " + Math.Round(temperature * 10) / 10);
             temperature = GUILayout.HorizontalSlider(temperature, -50f, 50f);
@@ -486,30 +457,28 @@ namespace SamSWAT.TimeWeatherChanger
                     break;
             }
 
-            if (IsWinterEnabled.Value)
+            if (GUILayout.Button("Light Rain"))
             {
-                if (GUILayout.Button("Light Snow"))
-                {
-                    cloudDensity = -0.1f;
-                    fog = 0.004f;
-                    lightningThunderProb = 0f;
-                    rain = 0.5f;
-                    temperature = 22f;
-                    windDir = Random.Range(1, 8);
-                    windMagnitude = 0f;
-                    topWindDir = Random.Range(0, 5);
-                }
-                if (GUILayout.Button("Snow"))
-                {
-                    cloudDensity = 0.05f;
-                    fog = 0.004f;
-                    lightningThunderProb = 0.3f;
-                    rain = 1f;
-                    temperature = 22f;
-                    windDir = Random.Range(1, 8);
-                    windMagnitude = 0.15f;
-                    topWindDir = Random.Range(0, 5);
-                }
+                cloudDensity = -0.1f;
+                fog = 0.004f;
+                lightningThunderProb = 0f;
+                rain = 0.5f;
+                temperature = 22f;
+                windDir = Random.Range(1, 8);
+                windMagnitude = 0f;
+                topWindDir = Random.Range(0, 5);
+            }
+            
+            if (GUILayout.Button("Rain"))
+            {
+                cloudDensity = 0.05f;
+                fog = 0.004f;
+                lightningThunderProb = 0.3f;
+                rain = 1f;
+                temperature = 22f;
+                windDir = Random.Range(1, 8);
+                windMagnitude = 0.15f;
+                topWindDir = Random.Range(0, 5);
             }
 
             if (GUILayout.Button("Fog"))
@@ -523,6 +492,7 @@ namespace SamSWAT.TimeWeatherChanger
                 windMagnitude = 0f;
                 topWindDir = Random.Range(0, 5);
             }
+            
             if (GUILayout.Button("Default"))
             {
                 cloudDensity = -0.3f;
@@ -534,6 +504,7 @@ namespace SamSWAT.TimeWeatherChanger
                 windMagnitude = 0.75f;
                 topWindDir = 2;
             }
+            
             if (GUILayout.Button("BSG Preset"))
             {
                 cloudDensity = -0.371f;
@@ -557,10 +528,13 @@ namespace SamSWAT.TimeWeatherChanger
             //Writing all the parameters selected by the player to the WeatherDebug script
             weatherController.WeatherDebug.Enabled = weatherDebug;
             weatherController.WeatherDebug.CloudDensity = cloudDensity;
-            weatherController.WeatherDebug.Fog = fog;
-            weatherController.WeatherDebug.LightningThunderProbability = lightningThunderProb;
-            weatherController.WeatherDebug.Rain = rain;
-            weatherController.WeatherDebug.Temperature = temperature;
+            
+            // These must be done through reflection due to an ambiguous reference. (as of 3.9.0)
+            Reflection.FogField.SetValue(weatherController.WeatherDebug, fog);
+            Reflection.LighteningThunderField.SetValue(weatherController.WeatherDebug, lightningThunderProb);
+            Reflection.RainField.SetValue(weatherController.WeatherDebug, rain);
+            Reflection.TemperatureField.SetValue(weatherController.WeatherDebug, temperature);
+            
             weatherController.WeatherDebug.TopWindDirection = topWindDirection;
             weatherController.WeatherDebug.WindDirection = windDirection;
             weatherController.WeatherDebug.WindMagnitude = windMagnitude;
