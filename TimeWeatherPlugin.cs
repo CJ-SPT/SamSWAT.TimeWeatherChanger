@@ -20,10 +20,11 @@ using Random = UnityEngine.Random;
 
 namespace SamSWAT.TimeWeatherChanger
 {
-    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.4.0")]
+    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.4.1")]
+    [BepInDependency("com.SPT.custom", "3.10.0")]
     public class TimeWeatherPlugin : BaseUnityPlugin
     {
-        public const int TarkovVersion = 30626;
+        public const int TarkovVersion = 33420;
 
         public static InputManager Input;
         
@@ -43,7 +44,7 @@ namespace SamSWAT.TimeWeatherChanger
         private static bool weatherDebug = false;
 
         private static float cloudDensity;
-        private static float fog;
+        private static float fog = 0.001f;
         private static float rain;
         private static float lightningThunderProb;
         private static float temperature;
@@ -300,7 +301,7 @@ namespace SamSWAT.TimeWeatherChanger
             GUILayout.BeginVertical();
 
             GUILayout.Box("Fog: " + Math.Round(fog * 1000) / 1000);
-            fog = GUILayout.HorizontalSlider(fog, 0f, 0.35f);
+            fog = GUILayout.HorizontalSlider(fog, 0.001f, 0.35f);
 
             GUILayout.Box("Thunder prob: " + Math.Round(lightningThunderProb * 1000) / 1000);
             lightningThunderProb = GUILayout.HorizontalSlider(lightningThunderProb, 0f, 1f);

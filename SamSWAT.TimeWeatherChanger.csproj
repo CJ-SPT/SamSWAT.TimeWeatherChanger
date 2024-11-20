@@ -89,13 +89,9 @@
     <Compile Include="VersionChecker.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetPath)" "G:\3.9.3 - Dev\BepInEx\plugins\$(TargetName).dll"
-if $(ConfigurationName) == Debug (
-    copy "$(ProjectDir)$(OutDir)$(TargetName).pdb" "G:\3.9.3 - Dev\BepInEx\plugins\$(TargetName).pdb"
-) else (
-    del "G:\3.9.3 - Dev\BepInEx\plugins\$(TargetName).pdb"
-)
-</PostBuildEvent>
-  </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;$(TargetPath)&quot; &quot;..\..\BepInEx\plugins\$(TargetName).dll&quot;&#xD;&#xA;if $(ConfigurationName) == Debug (&#xD;&#xA;    copy &quot;$(ProjectDir)$(OutDir)$(TargetName).pdb&quot; &quot;..\..\BepInEx\plugins\$(TargetName).pdb&quot;&#xD;&#xA;) else (&#xD;&#xA;    del &quot;..\..\BepInEx\plugins\$(TargetName).pdb&quot;&#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;del &quot;..\..\BepInEx\config\com.dirtbikercj.template.cfg&quot;" />
+  </Target>
+  
 </Project>
