@@ -20,11 +20,11 @@ using Random = UnityEngine.Random;
 
 namespace SamSWAT.TimeWeatherChanger
 {
-    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.4.1")]
-    [BepInDependency("com.SPT.custom", "3.10.0")]
+    [BepInPlugin("com.samswat.timeweatherchanger", "SamSWAT.TimeWeatherChanger", "2.4.2")]
+    [BepInDependency("com.SPT.custom", "3.11.0")]
     public class TimeWeatherPlugin : BaseUnityPlugin
     {
-        public const int TarkovVersion = 33420;
+        public const int TarkovVersion = 35392;
 
         public static InputManager Input;
         

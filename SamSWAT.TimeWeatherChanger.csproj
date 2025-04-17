@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>SamSWAT.TimeWeatherChanger</RootNamespace>
     <AssemblyName>SamSWAT.TimeWeatherChanger</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <LangVersion>latest</LangVersion>
@@ -42,7 +42,7 @@
     <Reference Include="0Harmony">
       <HintPath>..\..\BepinEx\Core\0Harmony.dll</HintPath>
     </Reference>
-    <Reference Include="Aki.Reflection, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="SPT.Reflection, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\BepinEx\Plugins\spt\Spt-Reflection.dll</HintPath>
     </Reference>
@@ -61,6 +61,9 @@
       <HintPath>..\..\EscapeFromTarkov_Data\managed\Comfort.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="Sirenix.Serialization">
+      <HintPath>..\..\EscapeFromTarkov_Data\managed\Sirenix.Serialization.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\EscapeFromTarkov_Data\managed\UnityEngine.dll</HintPath>
     </Reference>
